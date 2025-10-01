@@ -16,6 +16,15 @@ const nameModal = document.getElementById('nameModal');
 const nameModalInput = document.getElementById('nameModalInput');
 const nameModalSave = document.getElementById('nameModalSave');
 
+// Admin tools elements
+const adminToolsBtn = document.getElementById('adminToolsBtn');
+const adminModal = document.getElementById('adminModal');
+const resetCounterBtn = document.getElementById('resetCounterBtn');
+const clearLeaderboardBtn = document.getElementById('clearLeaderboardBtn');
+const removePlayerInput = document.getElementById('removePlayerInput');
+const removePlayerBtn = document.getElementById('removePlayerBtn');
+const adminCloseBtn = document.getElementById('adminCloseBtn');
+
 playerNameDisplay.textContent = playerName + ' \u2699';
 
 // --- Ensure only integers can be typed ---
@@ -27,27 +36,27 @@ function connect() {
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => { 
-	showMsg('Connected', false, true); // green for connected
-	updateSubmitButton(); 
+    showMsg('Connected', false, true); // green for connected
+    updateSubmitButton(); 
   };
   ws.onclose = () => { 
-	showMsg('Disconnected — reconnecting...', true); // red for disconnected
-	setTimeout(connect, 1000 + Math.random() * 1000); 
+    showMsg('Disconnected — reconnecting...', true); // red for disconnected
+    setTimeout(connect, 1000 + Math.random() * 1000); 
   };
   ws.onerror = () => showMsg('Connection error', true);
 
   ws.onmessage = ev => {
-	let payload;
-	try { payload = JSON.parse(ev.data); } catch { return; }
+    let payload;
+    try { payload = JSON.parse(ev.data); } catch { return; }
 
-	if (payload.type === 'init') {
-	  myUuid = payload.yourUuid;
-	  applyState(payload);
-	} else if (payload.type === 'state') {
-	  applyState(payload);
-	} else if (payload.type === 'error') {
-	  showMsg(payload.message || 'Error', true);
-	}
+    if (payload.type === 'init') {
+      myUuid = payload.yourUuid;
+      applyState(payload);
+    } else if (payload.type === 'state') {
+      applyState(payload);
+    } else if (payload.type === 'error') {
+      showMsg(payload.message || 'Error', true);
+    }
   };
 }
 
@@ -56,16 +65,30 @@ function applyState(state) {
 
   const rows = (state.leaderboard || []);
   boardTbody.innerHTML = '';
+
   rows.forEach((r, idx) => {
-	const displayId = r.uuid === myUuid ? 'You' : r.uuid.slice(0,8);
-	const tr = document.createElement('tr');
-	tr.innerHTML = `<td>${idx + 1}</td><td>${displayId}</td><td>${r.playerName}</td><td>${r.score}</td>`;
-	boardTbody.appendChild(tr);
+    const displayId = r.uuid === myUuid ? 'You' : r.uuid.slice(0,8);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${idx + 1}</td><td class="uuidCell">${displayId}</td><td>${r.playerName}</td><td>${r.score}</td>`;
+    
+    // Admin copy full UUID on click
+    if (playerName === "Admin" && r.uuid !== myUuid) {
+      const uuidCell = tr.querySelector('.uuidCell');
+      uuidCell.style.cursor = "pointer";
+      uuidCell.title = "Click to copy full UUID";
+      uuidCell.onclick = () => {
+        navigator.clipboard.writeText(r.uuid)
+          .then(() => showMsg(`Copied UUID ${r.uuid} to clipboard`, false, true))
+          .catch(() => showMsg('Failed to copy UUID', true));
+      };
+    }
+
+    boardTbody.appendChild(tr);
   });
 
   if (state.playerUuid === myUuid && state.cooldownEnd) {
-	cooldownEnd = state.cooldownEnd;
-	startCooldownTimer();
+    cooldownEnd = state.cooldownEnd;
+    startCooldownTimer();
   }
 
   updateSubmitButton();
@@ -73,17 +96,16 @@ function applyState(state) {
 
 function showMsg(text, isError = false, isSuccess = false) {
   if (!text) { 
-	msgEl.style.display = 'none'; 
-	return; 
+    msgEl.style.display = 'none'; 
+    return; 
   }
 
-  // Apply proper class
   if (isError) {
-	msgEl.className = 'msg err';
+    msgEl.className = 'msg err';
   } else if (isSuccess) {
-	msgEl.className = 'msg success';
+    msgEl.className = 'msg success';
   } else {
-	msgEl.className = 'msg';
+    msgEl.className = 'msg';
   }
 
   msgEl.textContent = text;
@@ -96,35 +118,35 @@ function updateSubmitButton() {
   const now = Date.now();
   const remaining = Math.max(0, cooldownEnd - now);
   if (remaining > 0) {
-	submitBtn.disabled = true;
-	submitBtn.textContent = `Wait ${Math.ceil(remaining/1000)}s`;
+    submitBtn.disabled = true;
+    submitBtn.textContent = `Wait ${Math.ceil(remaining/1000)}s`;
   } else {
-	submitBtn.disabled = false;
-	submitBtn.textContent = 'Submit';
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Submit';
   }
 }
 
 function startCooldownTimer() {
   if (cooldownTimer) return;
   cooldownTimer = setInterval(() => {
-	updateSubmitButton();
-	if (Date.now() >= cooldownEnd) {
-	  clearInterval(cooldownTimer);
-	  cooldownTimer = null;
-	  updateSubmitButton();
-	}
+    updateSubmitButton();
+    if (Date.now() >= cooldownEnd) {
+      clearInterval(cooldownTimer);
+      cooldownTimer = null;
+      updateSubmitButton();
+    }
   }, 200);
 }
 
 submitBtn.onclick = () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) { 
-	showMsg('Not connected', true); 
-	return; 
+    showMsg('Not connected', true); 
+    return; 
   }
   const num = Number(numberInput.value);
   if (!Number.isInteger(num)) { 
-	showMsg('Enter a valid integer', true); 
-	return; 
+    showMsg('Enter a valid integer', true); 
+    return; 
   }
   ws.send(JSON.stringify({ action:'submit', number: num, playerName }));
   numberInput.value = '';
@@ -141,10 +163,54 @@ nameModalSave.onclick = () => {
   localStorage.setItem('playerName', playerName);
   playerNameDisplay.textContent = playerName + ' \u2699';
   nameModal.style.display = 'none';
+  checkAdminTools();
 };
 
 window.onclick = (e) => { 
   if (e.target === nameModal) nameModal.style.display = 'none'; 
+  if (e.target === adminModal) adminModal.style.display = 'none';
 };
 
 connect();
+
+/* ------------------ ADMIN TOOLS ------------------ */
+
+function checkAdminTools() {
+  if (playerName === "Admin") {
+    adminToolsBtn.style.display = "block";
+  } else {
+    adminToolsBtn.style.display = "none";
+  }
+}
+
+adminToolsBtn.onclick = () => {
+  adminModal.style.display = "flex";
+};
+
+adminCloseBtn.onclick = () => {
+  adminModal.style.display = "none";
+};
+
+resetCounterBtn.onclick = () => {
+  ws.send(JSON.stringify({ action: "admin:resetCounter" }));
+  showMsg("Sent reset counter command", false, true);
+};
+
+clearLeaderboardBtn.onclick = () => {
+  ws.send(JSON.stringify({ action: "admin:clearLeaderboard" }));
+  showMsg("Sent clear leaderboard command", false, true);
+};
+
+removePlayerBtn.onclick = () => {
+  const target = removePlayerInput.value.trim();
+  if (!target) {
+    showMsg("Enter target UUID", true);
+    return;
+  }
+  ws.send(JSON.stringify({ action: "admin:removePlayer", targetUuid: target }));
+  showMsg(`Sent remove player command for ${target}`, false, true);
+  removePlayerInput.value = "";
+};
+
+// Run once at load
+checkAdminTools();
