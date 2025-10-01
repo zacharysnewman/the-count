@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <title>The Count</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="stylesheet" href="style.css?v=1">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 <div class="card">
@@ -22,8 +22,12 @@
 	<thead><tr><th>#</th><th>Player</th><th>Name</th><th>Score</th></tr></thead>
 	<tbody></tbody>
   </table>
+
+  <!-- Admin tools trigger (only visible if Admin) -->
+  <button id="adminToolsBtn" style="display:none; margin-top:20px;">Admin Tools</button>
 </div>
 
+<!-- Name modal -->
 <div class="modal" id="nameModal">
   <div class="modal-content">
 	<label>Edit your name:</label>
@@ -32,6 +36,20 @@
   </div>
 </div>
 
-<script src="script.js?v=1"></script>
+<!-- Admin modal -->
+<div class="modal" id="adminModal">
+  <div class="modal-content">
+	<h3>Admin Tools</h3>
+	<button id="resetCounterBtn">Reset Counter</button>
+	<button id="clearLeaderboardBtn">Clear Leaderboard</button>
+	<div>
+	  <input id="removePlayerInput" type="text" placeholder="Target UUID">
+	  <button id="removePlayerBtn">Remove Player</button>
+	</div>
+	<button id="adminCloseBtn">Close</button>
+  </div>
+</div>
+
+<script src="script.js?v=2"></script>
 </body>
 </html>
