@@ -102,7 +102,7 @@ button:disabled {
 /* Error message (disconnected, etc.) */
 .err {
   background: #ffecec; /* Light red background */
-  color: #900;		 /* Dark red text */
+  color: #900;	   /* Dark red text */
 }
 
 /* Success message (connected) */
@@ -201,4 +201,14 @@ th {
   .controls button {
 	width: 100%;
   }
+}
+
+/* Admin modal tweaks */
+#adminModal .modal-content button {
+  margin-top: 8px;
+}
+
+#adminModal input {
+  width: 100%;
+  margin-top: 8px;
 }
