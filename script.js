@@ -32,18 +32,59 @@ numberInput.addEventListener('input', () => {
   numberInput.value = numberInput.value.replace(/\D/g, '');
 });
 
+// --- Connection status tracking ---
+let connectionStatus = false; // true = connected
+let statusTimeout = null;
+
+function showMsg(text, isError = false, isSuccess = false, duration = 3500) {
+  clearTimeout(statusTimeout);
+
+  if (!text) { 
+    // Show connection status
+    msgEl.className = connectionStatus ? 'msg success' : 'msg err';
+    msgEl.textContent = connectionStatus ? 'Connected' : 'Disconnected';
+    msgEl.style.display = 'block';
+    return;
+  }
+
+  if (isError) {
+    msgEl.className = 'msg err';
+  } else if (isSuccess) {
+    msgEl.className = 'msg success';
+  } else {
+    msgEl.className = 'msg';
+  }
+
+  msgEl.textContent = text;
+  msgEl.style.display = 'block';
+
+  statusTimeout = setTimeout(() => {
+    msgEl.style.display = 'block';
+    msgEl.className = connectionStatus ? 'msg success' : 'msg err';
+    msgEl.textContent = connectionStatus ? 'Connected' : 'Disconnected';
+  }, duration);
+}
+
+// --- WebSocket connection ---
 function connect() {
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => { 
-    showMsg('Connected', false, true); // green for connected
+    connectionStatus = true;
+    showMsg('Connected', false, true);
     updateSubmitButton(); 
   };
+
   ws.onclose = () => { 
-    showMsg('Disconnected — reconnecting...', true); // red for disconnected
+    connectionStatus = false;
+    showMsg('Disconnected — reconnecting...', true); 
     setTimeout(connect, 1000 + Math.random() * 1000); 
   };
-  ws.onerror = () => showMsg('Connection error', true);
+
+  ws.onerror = () => {
+    connectionStatus = false;
+    showMsg('Connection error', true);
+  };
 
   ws.onmessage = ev => {
     let payload;
@@ -60,6 +101,7 @@ function connect() {
   };
 }
 
+// --- Update counter and leaderboard ---
 function applyState(state) {
   counterEl.textContent = state.counter;
 
@@ -70,8 +112,8 @@ function applyState(state) {
     const displayId = r.uuid === myUuid ? 'You' : r.uuid.slice(0,8);
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${idx + 1}</td><td class="uuidCell">${displayId}</td><td>${r.playerName}</td><td>${r.score}</td>`;
-    
-    // Admin copy full UUID on click
+
+    // Admin: copy full UUID on click
     if (playerName === "Admin" && r.uuid !== myUuid) {
       const uuidCell = tr.querySelector('.uuidCell');
       uuidCell.style.cursor = "pointer";
@@ -94,26 +136,7 @@ function applyState(state) {
   updateSubmitButton();
 }
 
-function showMsg(text, isError = false, isSuccess = false) {
-  if (!text) { 
-    msgEl.style.display = 'none'; 
-    return; 
-  }
-
-  if (isError) {
-    msgEl.className = 'msg err';
-  } else if (isSuccess) {
-    msgEl.className = 'msg success';
-  } else {
-    msgEl.className = 'msg';
-  }
-
-  msgEl.textContent = text;
-  msgEl.style.display = 'block';
-
-  setTimeout(() => { msgEl.style.display = 'none'; }, 3500);
-}
-
+// --- Submit handling ---
 function updateSubmitButton() {
   const now = Date.now();
   const remaining = Math.max(0, cooldownEnd - now);
@@ -152,6 +175,7 @@ submitBtn.onclick = () => {
   numberInput.value = '';
 };
 
+// --- Name modal ---
 playerNameDisplay.onclick = () => {
   nameModalInput.value = playerName;
   nameModal.style.display = 'flex';
@@ -166,15 +190,7 @@ nameModalSave.onclick = () => {
   checkAdminTools();
 };
 
-window.onclick = (e) => { 
-  if (e.target === nameModal) nameModal.style.display = 'none'; 
-  if (e.target === adminModal) adminModal.style.display = 'none';
-};
-
-connect();
-
-/* ------------------ ADMIN TOOLS ------------------ */
-
+// --- Admin tools ---
 function checkAdminTools() {
   if (playerName === "Admin") {
     adminToolsBtn.style.display = "block";
@@ -183,13 +199,8 @@ function checkAdminTools() {
   }
 }
 
-adminToolsBtn.onclick = () => {
-  adminModal.style.display = "flex";
-};
-
-adminCloseBtn.onclick = () => {
-  adminModal.style.display = "none";
-};
+adminToolsBtn.onclick = () => adminModal.style.display = "flex";
+adminCloseBtn.onclick = () => adminModal.style.display = "none";
 
 resetCounterBtn.onclick = () => {
   ws.send(JSON.stringify({ action: "admin:resetCounter" }));
@@ -212,5 +223,13 @@ removePlayerBtn.onclick = () => {
   removePlayerInput.value = "";
 };
 
-// Run once at load
+// --- Window click handler ---
+window.onclick = (e) => {
+  if (e.target === nameModal) nameModal.style.display = 'none'; 
+  if (e.target === adminModal) adminModal.style.display = 'none';
+};
+
+// --- Initialize ---
 checkAdminTools();
+connect();
+showMsg(); // initialize to show current connection status
