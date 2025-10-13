@@ -40,28 +40,28 @@ function showMsg(text, isError = false, isSuccess = false, duration = 3500) {
   clearTimeout(statusTimeout);
 
   if (!text) { 
-    // Show connection status
-    msgEl.className = connectionStatus ? 'msg success' : 'msg err';
-    msgEl.textContent = connectionStatus ? 'Connected' : 'Disconnected';
-    msgEl.style.display = 'block';
-    return;
+	// Show connection status
+	msgEl.className = connectionStatus ? 'msg success' : 'msg err';
+	msgEl.textContent = connectionStatus ? 'Connected' : 'Disconnected';
+	msgEl.style.display = 'block';
+	return;
   }
 
   if (isError) {
-    msgEl.className = 'msg err';
+	msgEl.className = 'msg err';
   } else if (isSuccess) {
-    msgEl.className = 'msg success';
+	msgEl.className = 'msg success';
   } else {
-    msgEl.className = 'msg';
+	msgEl.className = 'msg';
   }
 
   msgEl.textContent = text;
   msgEl.style.display = 'block';
 
   statusTimeout = setTimeout(() => {
-    msgEl.style.display = 'block';
-    msgEl.className = connectionStatus ? 'msg success' : 'msg err';
-    msgEl.textContent = connectionStatus ? 'Connected' : 'Disconnected';
+	msgEl.style.display = 'block';
+	msgEl.className = connectionStatus ? 'msg success' : 'msg err';
+	msgEl.textContent = connectionStatus ? 'Connected' : 'Disconnected';
   }, duration);
 }
 
@@ -70,67 +70,116 @@ function connect() {
   ws = new WebSocket(wsUrl);
 
   ws.onopen = () => { 
-    connectionStatus = true;
-    showMsg('Connected', false, true);
-    updateSubmitButton(); 
+	connectionStatus = true;
+	showMsg('Connected', false, true);
+	updateSubmitButton(); 
   };
 
   ws.onclose = () => { 
-    connectionStatus = false;
-    showMsg('Disconnected — reconnecting...', true); 
-    setTimeout(connect, 1000 + Math.random() * 1000); 
+	connectionStatus = false;
+	showMsg('Disconnected — reconnecting...', true); 
+	setTimeout(connect, 1000 + Math.random() * 1000); 
   };
 
   ws.onerror = () => {
-    connectionStatus = false;
-    showMsg('Connection error', true);
+	connectionStatus = false;
+	showMsg('Connection error', true);
   };
 
   ws.onmessage = ev => {
-    let payload;
-    try { payload = JSON.parse(ev.data); } catch { return; }
+	let payload;
+	try { payload = JSON.parse(ev.data); } catch { return; }
 
-    if (payload.type === 'init') {
-      myUuid = payload.yourUuid;
-      applyState(payload);
-    } else if (payload.type === 'state') {
-      applyState(payload);
-    } else if (payload.type === 'error') {
-      showMsg(payload.message || 'Error', true);
-    }
+	if (payload.type === 'init') {
+	  myUuid = payload.yourUuid;
+	  applyState(payload);
+	} else if (payload.type === 'state') {
+	  applyState(payload);
+	} else if (payload.type === 'error') {
+	  showMsg(payload.message || 'Error', true);
+	}
   };
+}
+
+function generateUniqueNumbers(realNumber, count = 9) {
+    const fakeNumbers = new Set();
+    while (fakeNumbers.size < count) {
+        const offset = Math.floor(Math.random() * 9) + 1; // 1–9
+        const addOrSubtract = Math.random() < 0.5 ? -1 : 1;
+        const fakeNumber = realNumber + offset * addOrSubtract;
+        if (fakeNumber !== realNumber) fakeNumbers.add(fakeNumber);
+    }
+    return Array.from(fakeNumbers);
+}
+
+// --- Helper: shuffle array ---
+function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+}
+
+// --- Helper: create number element ---
+function createNumberElement(number, invisible = false) {
+    const element = document.createElement('div');
+    element.textContent = number;
+
+    if (invisible) {
+        element.style.position = 'absolute';
+        element.style.width = '0';
+        element.style.height = '0';
+        element.style.overflow = 'hidden';
+        element.style.opacity = '0';
+    }
+
+    return element;
+}
+
+function populateCounter(realNumber, containerEl) {
+    containerEl.innerHTML = ''; // clear old content
+
+    const fakeNumbers = generateUniqueNumbers(realNumber);
+    const allNumbers = shuffleArray([realNumber, ...fakeNumbers]);
+
+    allNumbers.forEach(num => {
+        const isInvisible = num !== realNumber;
+        const numberEl = createNumberElement(num, isInvisible);
+        containerEl.appendChild(numberEl);
+    });
 }
 
 // --- Update counter and leaderboard ---
 function applyState(state) {
-  counterEl.textContent = state.counter;
+populateCounter(state.counter, counterEl);
 
   const rows = (state.leaderboard || []);
   boardTbody.innerHTML = '';
 
   rows.forEach((r, idx) => {
-    const displayId = r.uuid === myUuid ? 'You' : r.uuid.slice(0,8);
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${idx + 1}</td><td class="uuidCell">${displayId}</td><td>${r.playerName}</td><td>${r.score}</td>`;
+	const displayId = r.uuid === myUuid ? 'You' : r.uuid.slice(0,8);
+	const tr = document.createElement('tr');
+	tr.innerHTML = `<td>${idx + 1}</td><td class="uuidCell">${displayId}</td><td>${r.playerName}</td><td>${r.score}</td>`;
 
-    // Admin: copy full UUID on click
-    if (playerName === "Admin" && r.uuid !== myUuid) {
-      const uuidCell = tr.querySelector('.uuidCell');
-      uuidCell.style.cursor = "pointer";
-      uuidCell.title = "Click to copy full UUID";
-      uuidCell.onclick = () => {
-        navigator.clipboard.writeText(r.uuid)
-          .then(() => showMsg(`Copied UUID ${r.uuid} to clipboard`, false, true))
-          .catch(() => showMsg('Failed to copy UUID', true));
-      };
-    }
+	// Admin: copy full UUID on click
+	if (playerName === "Admin" && r.uuid !== myUuid) {
+	  const uuidCell = tr.querySelector('.uuidCell');
+	  uuidCell.style.cursor = "pointer";
+	  uuidCell.title = "Click to copy full UUID";
+	  uuidCell.onclick = () => {
+		navigator.clipboard.writeText(r.uuid)
+		  .then(() => showMsg(`Copied UUID ${r.uuid} to clipboard`, false, true))
+		  .catch(() => showMsg('Failed to copy UUID', true));
+	  };
+	}
 
-    boardTbody.appendChild(tr);
+	boardTbody.appendChild(tr);
   });
 
   if (state.playerUuid === myUuid && state.cooldownEnd) {
-    cooldownEnd = state.cooldownEnd;
-    startCooldownTimer();
+	cooldownEnd = state.cooldownEnd;
+	startCooldownTimer();
   }
 
   updateSubmitButton();
@@ -141,35 +190,35 @@ function updateSubmitButton() {
   const now = Date.now();
   const remaining = Math.max(0, cooldownEnd - now);
   if (remaining > 0) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = `Wait ${Math.ceil(remaining/1000)}s`;
+	submitBtn.disabled = true;
+	submitBtn.textContent = `Wait ${Math.ceil(remaining/1000)}s`;
   } else {
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Submit';
+	submitBtn.disabled = false;
+	submitBtn.textContent = 'Submit';
   }
 }
 
 function startCooldownTimer() {
   if (cooldownTimer) return;
   cooldownTimer = setInterval(() => {
-    updateSubmitButton();
-    if (Date.now() >= cooldownEnd) {
-      clearInterval(cooldownTimer);
-      cooldownTimer = null;
-      updateSubmitButton();
-    }
+	updateSubmitButton();
+	if (Date.now() >= cooldownEnd) {
+	  clearInterval(cooldownTimer);
+	  cooldownTimer = null;
+	  updateSubmitButton();
+	}
   }, 200);
 }
 
 submitBtn.onclick = () => {
   if (!ws || ws.readyState !== WebSocket.OPEN) { 
-    showMsg('Not connected', true); 
-    return; 
+	showMsg('Not connected', true); 
+	return; 
   }
   const num = Number(numberInput.value);
   if (!Number.isInteger(num)) { 
-    showMsg('Enter a valid integer', true); 
-    return; 
+	showMsg('Enter a valid integer', true); 
+	return; 
   }
   ws.send(JSON.stringify({ action:'submit', number: num, playerName }));
   numberInput.value = '';
@@ -193,9 +242,9 @@ nameModalSave.onclick = () => {
 // --- Admin tools ---
 function checkAdminTools() {
   if (playerName === "Admin") {
-    adminToolsBtn.style.display = "block";
+	adminToolsBtn.style.display = "block";
   } else {
-    adminToolsBtn.style.display = "none";
+	adminToolsBtn.style.display = "none";
   }
 }
 
@@ -215,8 +264,8 @@ clearLeaderboardBtn.onclick = () => {
 removePlayerBtn.onclick = () => {
   const target = removePlayerInput.value.trim();
   if (!target) {
-    showMsg("Enter target UUID", true);
-    return;
+	showMsg("Enter target UUID", true);
+	return;
   }
   ws.send(JSON.stringify({ action: "admin:removePlayer", targetUuid: target }));
   showMsg(`Sent remove player command for ${target}`, false, true);
