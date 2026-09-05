@@ -212,3 +212,10 @@ th {
   width: 100%;
   margin-top: 8px;
 }
+
+/* Player key modal */
+.keyNote { font-size: 0.85rem; opacity: 0.75; margin: 6px 0 10px; line-height: 1.4; }
+.keyRow { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.keyRow input { flex: 1 1 12rem; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+#keyModal .modal-content { max-width: 30rem; text-align: left; }
+#keyModal h4 { margin: 14px 0 0; }

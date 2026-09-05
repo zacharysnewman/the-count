@@ -23,8 +23,36 @@
 	<tbody></tbody>
   </table>
 
+  <button id="keyBtn" style="margin-top:16px;">Your player key</button>
+
   <!-- Admin tools trigger (only visible if Admin) -->
   <button id="adminToolsBtn" style="display:none; margin-top:20px;">Admin Tools</button>
+</div>
+
+<!-- Player key modal -->
+<div class="modal" id="keyModal">
+  <div class="modal-content">
+	<h3>Your player key</h3>
+	<p class="keyNote">
+	  This key <em>is</em> your player. Save it somewhere safe — it is the only way
+	  back to your score, and it cannot be recovered if you lose it.
+	</p>
+	<div class="keyRow">
+	  <input id="keyDisplay" type="password" readonly>
+	  <button id="keyRevealBtn" type="button">Show</button>
+	  <button id="keyCopyBtn" type="button">Copy</button>
+	</div>
+
+	<h4>Use this player on another browser</h4>
+	<p class="keyNote">Paste a key here to play as that player on this device.</p>
+	<div class="keyRow">
+	  <input id="keyInput" type="text" placeholder="count-otter-marble-..." autocomplete="off" spellcheck="false">
+	  <button id="keyUseBtn" type="button">Use key</button>
+	</div>
+
+	<button id="keyRotateBtn" type="button">Replace with a new key</button>
+	<button id="keyCloseBtn" type="button">Close</button>
+  </div>
 </div>
 
 <!-- Name modal -->

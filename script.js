@@ -6,6 +6,10 @@ let cooldownTimer = null;
 
 let playerName = localStorage.getItem('playerName') || 'User';
 
+// The player key is the identity. It lives only here and in the player's
+// other browsers — the server stores a hash and cannot ever send it back.
+let playerKey = localStorage.getItem('playerKey') || '';
+
 const counterEl = document.getElementById('counter');
 const numberInput = document.getElementById('numberInput');
 const submitBtn = document.getElementById('submitBtn');
@@ -25,6 +29,17 @@ const removePlayerInput = document.getElementById('removePlayerInput');
 const removePlayerBtn = document.getElementById('removePlayerBtn');
 const adminTokenInput = document.getElementById('adminTokenInput');
 const adminCloseBtn = document.getElementById('adminCloseBtn');
+
+// Player key elements
+const keyBtn = document.getElementById('keyBtn');
+const keyModal = document.getElementById('keyModal');
+const keyDisplay = document.getElementById('keyDisplay');
+const keyRevealBtn = document.getElementById('keyRevealBtn');
+const keyCopyBtn = document.getElementById('keyCopyBtn');
+const keyInput = document.getElementById('keyInput');
+const keyUseBtn = document.getElementById('keyUseBtn');
+const keyRotateBtn = document.getElementById('keyRotateBtn');
+const keyCloseBtn = document.getElementById('keyCloseBtn');
 
 playerNameDisplay.textContent = playerName + ' \u2699';
 
@@ -70,10 +85,12 @@ function showMsg(text, isError = false, isSuccess = false, duration = 3500) {
 function connect() {
   ws = new WebSocket(wsUrl);
 
-  ws.onopen = () => { 
+  ws.onopen = () => {
 	connectionStatus = true;
 	showMsg('Connected', false, true);
-	updateSubmitButton(); 
+	// Identity is established by the first message, not by the connection.
+	ws.send(JSON.stringify(playerKey ? { action: 'hello', playerKey } : { action: 'hello' }));
+	updateSubmitButton();
   };
 
   ws.onclose = () => { 
@@ -93,11 +110,24 @@ function connect() {
 
 	if (payload.type === 'init') {
 	  myUuid = payload.yourUuid;
+	  // Only ever sent once, when a key is minted. Save it immediately —
+	  // the server keeps a hash and cannot reissue this.
+	  if (payload.playerKey) savePlayerKey(payload.playerKey);
 	  applyState(payload);
+	} else if (payload.type === 'keyRotated') {
+	  savePlayerKey(payload.playerKey);
+	  showMsg('New key saved. The old one no longer works.', false, true);
 	} else if (payload.type === 'state') {
 	  applyState(payload);
 	} else if (payload.type === 'error') {
 	  showMsg(payload.message || 'Error', true);
+	  // A key we no longer recognise would otherwise wedge every reconnect in
+	  // a rejection loop, so drop it and come back as a new player.
+	  if (payload.error === 'unknown_key' || payload.error === 'invalid_key') {
+		savePlayerKey('');
+		showMsg('That key was not recognised — starting a new player.', true);
+		ws.close();
+	  }
 	  // A rejected submission still costs a cooldown, so the button has to
 	  // reflect it — otherwise the player just gets "please wait" on every
 	  // retry with no visible reason.
@@ -246,6 +276,55 @@ submitBtn.onclick = () => {
   numberInput.value = '';
 };
 
+// --- Player key ---
+function savePlayerKey(key) {
+  playerKey = key || '';
+  if (playerKey) {
+	localStorage.setItem('playerKey', playerKey);
+  } else {
+	localStorage.removeItem('playerKey');
+  }
+  keyDisplay.value = playerKey;
+}
+
+keyBtn.onclick = () => {
+  keyDisplay.value = playerKey;
+  keyDisplay.type = 'password';
+  keyRevealBtn.textContent = 'Show';
+  keyInput.value = '';
+  keyModal.style.display = 'flex';
+};
+
+keyRevealBtn.onclick = () => {
+  const hidden = keyDisplay.type === 'password';
+  keyDisplay.type = hidden ? 'text' : 'password';
+  keyRevealBtn.textContent = hidden ? 'Hide' : 'Show';
+};
+
+keyCopyBtn.onclick = () => {
+  if (!playerKey) { showMsg('No key yet', true); return; }
+  navigator.clipboard.writeText(playerKey)
+	.then(() => showMsg('Key copied to clipboard', false, true))
+	.catch(() => showMsg('Could not copy — reveal it and copy by hand', true));
+};
+
+keyUseBtn.onclick = () => {
+  const pasted = keyInput.value.trim();
+  if (!pasted) { showMsg('Paste a key first', true); return; }
+  savePlayerKey(pasted);
+  keyModal.style.display = 'none';
+  showMsg('Switching player...', false, true);
+  // Identity is fixed for the life of a connection, so reconnect to adopt it.
+  ws.close();
+};
+
+keyRotateBtn.onclick = () => {
+  if (!confirm('Replace your key? The current one will stop working everywhere.')) return;
+  ws.send(JSON.stringify({ action: 'rotateKey' }));
+};
+
+keyCloseBtn.onclick = () => keyModal.style.display = 'none';
+
 // --- Name modal ---
 playerNameDisplay.onclick = () => {
   nameModalInput.value = playerName;
@@ -305,6 +384,7 @@ removePlayerBtn.onclick = () => {
 window.onclick = (e) => {
   if (e.target === nameModal) nameModal.style.display = 'none'; 
   if (e.target === adminModal) adminModal.style.display = 'none';
+  if (e.target === keyModal) keyModal.style.display = 'none';
 };
 
 // --- Initialize ---
