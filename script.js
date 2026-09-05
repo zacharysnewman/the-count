@@ -23,6 +23,7 @@ const resetCounterBtn = document.getElementById('resetCounterBtn');
 const clearLeaderboardBtn = document.getElementById('clearLeaderboardBtn');
 const removePlayerInput = document.getElementById('removePlayerInput');
 const removePlayerBtn = document.getElementById('removePlayerBtn');
+const adminTokenInput = document.getElementById('adminTokenInput');
 const adminCloseBtn = document.getElementById('adminCloseBtn');
 
 playerNameDisplay.textContent = playerName + ' \u2699';
@@ -160,7 +161,20 @@ populateCounter(state.counter, counterEl);
   rows.forEach((r, idx) => {
 	const displayId = r.uuid === myUuid ? 'You' : r.uuid.slice(0,8);
 	const tr = document.createElement('tr');
-	tr.innerHTML = `<td>${idx + 1}</td><td class="uuidCell">${displayId}</td><td>${r.playerName}</td><td>${r.score}</td>`;
+
+	// Cells are built with textContent, never innerHTML. playerName is
+	// attacker-controlled: it comes from another player, through the server,
+	// to every client. Interpolating it into an HTML string made any name a
+	// stored XSS payload executing in every viewer's browser. The server also
+	// strips markup characters now, but this is the layer that has to be right
+	// — it is the one that decides whether the value is code or text.
+	const cells = [String(idx + 1), displayId, r.playerName, String(r.score)];
+	cells.forEach((value, cellIdx) => {
+	  const td = document.createElement('td');
+	  td.textContent = value;
+	  if (cellIdx === 1) td.className = 'uuidCell';
+	  tr.appendChild(td);
+	});
 
 	// Admin: copy full UUID on click
 	if (playerName === "Admin" && r.uuid !== myUuid) {
@@ -251,13 +265,20 @@ function checkAdminTools() {
 adminToolsBtn.onclick = () => adminModal.style.display = "flex";
 adminCloseBtn.onclick = () => adminModal.style.display = "none";
 
+// Admin authorisation is a server-side token, not an IP or a display name.
+// Nothing here grants anything: the server rejects any admin command whose
+// token does not match, so this input is a convenience, not a control.
+function adminToken() {
+  return (adminTokenInput && adminTokenInput.value.trim()) || '';
+}
+
 resetCounterBtn.onclick = () => {
-  ws.send(JSON.stringify({ action: "admin:resetCounter" }));
+  ws.send(JSON.stringify({ action: "admin:resetCounter", adminToken: adminToken() }));
   showMsg("Sent reset counter command", false, true);
 };
 
 clearLeaderboardBtn.onclick = () => {
-  ws.send(JSON.stringify({ action: "admin:clearLeaderboard" }));
+  ws.send(JSON.stringify({ action: "admin:clearLeaderboard", adminToken: adminToken() }));
   showMsg("Sent clear leaderboard command", false, true);
 };
 
@@ -267,7 +288,7 @@ removePlayerBtn.onclick = () => {
 	showMsg("Enter target UUID", true);
 	return;
   }
-  ws.send(JSON.stringify({ action: "admin:removePlayer", targetUuid: target }));
+  ws.send(JSON.stringify({ action: "admin:removePlayer", targetUuid: target, adminToken: adminToken() }));
   showMsg(`Sent remove player command for ${target}`, false, true);
   removePlayerInput.value = "";
 };
