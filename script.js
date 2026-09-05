@@ -98,6 +98,14 @@ function connect() {
 	  applyState(payload);
 	} else if (payload.type === 'error') {
 	  showMsg(payload.message || 'Error', true);
+	  // A rejected submission still costs a cooldown, so the button has to
+	  // reflect it — otherwise the player just gets "please wait" on every
+	  // retry with no visible reason.
+	  if (typeof payload.cooldownEnd === 'number') {
+		cooldownEnd = payload.cooldownEnd;
+		updateSubmitButton();
+		startCooldownTimer();
+	  }
 	}
   };
 }
