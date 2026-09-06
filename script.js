@@ -151,13 +151,16 @@ function connect() {
 }
 
 /**
- * The counter arrives as an SVG image; its numeric value is never sent.
+ * The number to enter arrives as an SVG image; its value is never sent.
+ *
+ * The image shows the goal directly, not the current count, so the player types
+ * what they read rather than doing arithmetic on it.
  *
  * Rendered through an <img> data URI rather than innerHTML: SVG inside an
  * <img> cannot execute script, so even though this markup comes from our own
  * server there is no path from a bad frame to code execution.
  */
-function renderCounterImage(svg, containerEl) {
+function renderTargetImage(svg, containerEl) {
   if (typeof svg !== 'string' || !svg.startsWith('<svg')) return;
   let img = containerEl.querySelector('img.counterImg');
   if (!img) {
@@ -172,7 +175,7 @@ function renderCounterImage(svg, containerEl) {
 
 // --- Update counter and leaderboard ---
 function applyState(state) {
-  if (state.counterImage) renderCounterImage(state.counterImage, counterEl);
+  if (state.targetImage) renderTargetImage(state.targetImage, counterEl);
 
   const rows = (state.leaderboard || []);
   boardTbody.innerHTML = '';
