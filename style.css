@@ -219,3 +219,6 @@ th {
 .keyRow input { flex: 1 1 12rem; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 #keyModal .modal-content { max-width: 30rem; text-align: left; }
 #keyModal h4 { margin: 14px 0 0; }
+
+/* Counter image. The count is drawn server side and arrives as SVG. */
+.counter img.counterImg { display: block; width: 100%; max-width: 22rem; margin: 0 auto; image-rendering: auto; }

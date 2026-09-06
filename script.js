@@ -108,6 +108,16 @@ function connect() {
 	let payload;
 	try { payload = JSON.parse(ev.data); } catch { return; }
 
+	if (payload.type === 'you') {
+	  // Personal state: only the submitter is told anything happened.
+	  if (typeof payload.cooldownEnd === 'number') {
+		cooldownEnd = payload.cooldownEnd;
+		updateSubmitButton();
+		startCooldownTimer();
+	  }
+	  return;
+	}
+
 	if (payload.type === 'init') {
 	  myUuid = payload.yourUuid;
 	  // Only ever sent once, when a key is minted. Save it immediately —
@@ -140,58 +150,29 @@ function connect() {
   };
 }
 
-function generateUniqueNumbers(realNumber, count = 9) {
-    const fakeNumbers = new Set();
-    while (fakeNumbers.size < count) {
-        const offset = Math.floor(Math.random() * 9) + 1; // 1–9
-        const addOrSubtract = Math.random() < 0.5 ? -1 : 1;
-        const fakeNumber = realNumber + offset * addOrSubtract;
-        if (fakeNumber !== realNumber) fakeNumbers.add(fakeNumber);
-    }
-    return Array.from(fakeNumbers);
-}
-
-// --- Helper: shuffle array ---
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-}
-
-// --- Helper: create number element ---
-function createNumberElement(number, invisible = false) {
-    const element = document.createElement('div');
-    element.textContent = number;
-
-    if (invisible) {
-        element.style.position = 'absolute';
-        element.style.width = '0';
-        element.style.height = '0';
-        element.style.overflow = 'hidden';
-        element.style.opacity = '0';
-    }
-
-    return element;
-}
-
-function populateCounter(realNumber, containerEl) {
-    containerEl.innerHTML = ''; // clear old content
-
-    const fakeNumbers = generateUniqueNumbers(realNumber);
-    const allNumbers = shuffleArray([realNumber, ...fakeNumbers]);
-
-    allNumbers.forEach(num => {
-        const isInvisible = num !== realNumber;
-        const numberEl = createNumberElement(num, isInvisible);
-        containerEl.appendChild(numberEl);
-    });
+/**
+ * The counter arrives as an SVG image; its numeric value is never sent.
+ *
+ * Rendered through an <img> data URI rather than innerHTML: SVG inside an
+ * <img> cannot execute script, so even though this markup comes from our own
+ * server there is no path from a bad frame to code execution.
+ */
+function renderCounterImage(svg, containerEl) {
+  if (typeof svg !== 'string' || !svg.startsWith('<svg')) return;
+  let img = containerEl.querySelector('img.counterImg');
+  if (!img) {
+	containerEl.innerHTML = '';
+	img = document.createElement('img');
+	img.className = 'counterImg';
+	img.alt = 'The current count';
+	containerEl.appendChild(img);
+  }
+  img.src = 'data:image/svg+xml,' + encodeURIComponent(svg);
 }
 
 // --- Update counter and leaderboard ---
 function applyState(state) {
-populateCounter(state.counter, counterEl);
+  if (state.counterImage) renderCounterImage(state.counterImage, counterEl);
 
   const rows = (state.leaderboard || []);
   boardTbody.innerHTML = '';
@@ -228,11 +209,6 @@ populateCounter(state.counter, counterEl);
 
 	boardTbody.appendChild(tr);
   });
-
-  if (state.playerUuid === myUuid && state.cooldownEnd) {
-	cooldownEnd = state.cooldownEnd;
-	startCooldownTimer();
-  }
 
   updateSubmitButton();
 }
