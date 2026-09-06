@@ -151,26 +151,28 @@ function connect() {
 }
 
 /**
- * The number to enter arrives as an SVG image; its value is never sent.
+ * The number to enter arrives as a rendered PNG data URI; its value is never
+ * sent.
  *
- * The image shows the goal directly, not the current count, so the player types
- * what they read rather than doing arithmetic on it.
+ * It shows the goal directly, not the current count, so the player types what
+ * they read rather than doing arithmetic on it.
  *
- * Rendered through an <img> data URI rather than innerHTML: SVG inside an
- * <img> cannot execute script, so even though this markup comes from our own
- * server there is no path from a bad frame to code execution.
+ * A raster rather than an SVG, on purpose. The SVG version carried the glyph
+ * geometry as data — path coordinates in canonical space, with the rotation in
+ * a separate transform attribute — and a bot read the number straight out of it
+ * with no OCR at all. Pixels have no such back door.
  */
-function renderTargetImage(svg, containerEl) {
-  if (typeof svg !== 'string' || !svg.startsWith('<svg')) return;
+function renderTargetImage(dataUri, containerEl) {
+  if (typeof dataUri !== 'string' || !dataUri.startsWith('data:image/png;base64,')) return;
   let img = containerEl.querySelector('img.counterImg');
   if (!img) {
 	containerEl.innerHTML = '';
 	img = document.createElement('img');
 	img.className = 'counterImg';
-	img.alt = 'The current count';
+	img.alt = 'The number to enter';
 	containerEl.appendChild(img);
   }
-  img.src = 'data:image/svg+xml,' + encodeURIComponent(svg);
+  img.src = dataUri;
 }
 
 // --- Update counter and leaderboard ---
