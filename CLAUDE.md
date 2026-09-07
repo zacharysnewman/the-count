@@ -40,19 +40,42 @@ asked to send.
 
 ### Known live instances
 
-1. `counter` arrives verbatim in the `init` and `state` frames. Currently by design.
-2. **Score sum.** Every player's exact score is in every frame, and those scores sum to
-   `counter` — so the counter is recoverable even if the field itself is removed.
-3. **Frame counting.** A `state` frame is pushed on every successful submission, so counting
-   frames tracks the counter exactly without reading any field.
-4. **Per-event attribution.** `playerUuid` in the increment broadcast identifies who scored.
+None. The four channels below were closed together in the backend, which is the only
+reason hiding the value means anything — closing any three of them would have achieved
+nothing. `the-count-backend/HARDENING.md` #8 has the detail.
+
+1. ~~`counter` sent verbatim.~~ The frame now carries `targetImage`, a server-rendered
+   PNG data URI of the goal, and no numeric counter at all. `renderTargetImage()` drops
+   it into an `<img>` and does nothing else with it. There is no client-side way to get
+   the number back, by design — do not add one, and do not add a text alternative
+   (see the accessibility note below).
+2. ~~Score sum.~~ The broadcast leaderboard is a periodic snapshot, not live totals. A
+   player's own score arrives privately in a `you` frame.
+3. ~~Frame counting.~~ State arrives on a fixed cadence whether or not anything changed,
+   with a freshly randomised image every tick, so frames cannot be counted or compared.
+4. ~~Per-event attribution.~~ No `playerUuid` in broadcasts, so no client can keep its
+   own tally.
+
+**The practical rule for this repo: do not ask the server for anything it does not already
+send.** A field that would make the UI nicer is the whole attack if it is a function of
+the counter. Adding one is a backend change and belongs in that repo's audit.
 
 ## Other standing notes
 
-- `generateUniqueNumbers()` / `populateCounter()` in `script.js` render the real counter among
-  nine `opacity: 0` decoys. This stops no bot — bots read the WebSocket frame and never touch
-  the DOM — while breaking screen readers and copy/paste. It should be deleted; do not extend
-  this approach.
-- The React client in the-count-backend renders the counter plainly, so the two frontends do
-  not behave the same way. Keep protocol changes in sync across both.
-- The number inputs use `step="10"`, so the spinner jumps by ten.
+- The counter image is a **fixed 400x80 canvas at a constant byte size for every value**.
+  Both are anti-leak measures in the server renderer — dimensions and payload length each
+  used to reveal the digit count. Nothing here should crop, trim whitespace from, or
+  otherwise size the element from the image content; style it from the fixed aspect ratio
+  only. `.counterImg` is capped at `30rem`.
+- The player key is identity: holding it *is* being that player. It is shown once in the
+  key modal and stored locally. Never log it, never put it in a URL, never send it
+  anywhere but the game socket.
+- Leaderboard rows are built with `textContent`, never `innerHTML` — `playerName` is
+  attacker-controlled and the server sanitises it, but this is the layer that actually
+  matters for XSS. Keep it that way.
+- **Accessibility is a known, unresolved exclusion.** The goal is an image with no text
+  alternative, so a screen reader user cannot play. There is no way to expose the value to
+  assistive technology without exposing it to a script — that is the entire mechanism.
+  The answer, when there is one, is a separate accessible mode, not an `alt` attribute.
+- The React client in the-count-backend renders the same `targetImage` and shares this
+  contract. Keep protocol changes in sync across both.
