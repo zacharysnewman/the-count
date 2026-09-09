@@ -6,6 +6,10 @@ let cooldownTimer = null;
 
 let playerName = localStorage.getItem('playerName') || 'User';
 
+// The player key is the identity. It lives only here and in the player's
+// other browsers — the server stores a hash and cannot ever send it back.
+let playerKey = localStorage.getItem('playerKey') || '';
+
 const counterEl = document.getElementById('counter');
 const numberInput = document.getElementById('numberInput');
 const submitBtn = document.getElementById('submitBtn');
@@ -23,7 +27,19 @@ const resetCounterBtn = document.getElementById('resetCounterBtn');
 const clearLeaderboardBtn = document.getElementById('clearLeaderboardBtn');
 const removePlayerInput = document.getElementById('removePlayerInput');
 const removePlayerBtn = document.getElementById('removePlayerBtn');
+const adminTokenInput = document.getElementById('adminTokenInput');
 const adminCloseBtn = document.getElementById('adminCloseBtn');
+
+// Player key elements
+const keyBtn = document.getElementById('keyBtn');
+const keyModal = document.getElementById('keyModal');
+const keyDisplay = document.getElementById('keyDisplay');
+const keyRevealBtn = document.getElementById('keyRevealBtn');
+const keyCopyBtn = document.getElementById('keyCopyBtn');
+const keyInput = document.getElementById('keyInput');
+const keyUseBtn = document.getElementById('keyUseBtn');
+const keyRotateBtn = document.getElementById('keyRotateBtn');
+const keyCloseBtn = document.getElementById('keyCloseBtn');
 
 playerNameDisplay.textContent = playerName + ' \u2699';
 
@@ -69,10 +85,12 @@ function showMsg(text, isError = false, isSuccess = false, duration = 3500) {
 function connect() {
   ws = new WebSocket(wsUrl);
 
-  ws.onopen = () => { 
+  ws.onopen = () => {
 	connectionStatus = true;
 	showMsg('Connected', false, true);
-	updateSubmitButton(); 
+	// Identity is established by the first message, not by the connection.
+	ws.send(JSON.stringify(playerKey ? { action: 'hello', playerKey } : { action: 'hello' }));
+	updateSubmitButton();
   };
 
   ws.onclose = () => { 
@@ -90,69 +108,76 @@ function connect() {
 	let payload;
 	try { payload = JSON.parse(ev.data); } catch { return; }
 
+	if (payload.type === 'you') {
+	  // Personal state: only the submitter is told anything happened.
+	  if (typeof payload.cooldownEnd === 'number') {
+		cooldownEnd = payload.cooldownEnd;
+		updateSubmitButton();
+		startCooldownTimer();
+	  }
+	  return;
+	}
+
 	if (payload.type === 'init') {
 	  myUuid = payload.yourUuid;
+	  // Only ever sent once, when a key is minted. Save it immediately —
+	  // the server keeps a hash and cannot reissue this.
+	  if (payload.playerKey) savePlayerKey(payload.playerKey);
 	  applyState(payload);
+	} else if (payload.type === 'keyRotated') {
+	  savePlayerKey(payload.playerKey);
+	  showMsg('New key saved. The old one no longer works.', false, true);
 	} else if (payload.type === 'state') {
 	  applyState(payload);
 	} else if (payload.type === 'error') {
 	  showMsg(payload.message || 'Error', true);
+	  // A key we no longer recognise would otherwise wedge every reconnect in
+	  // a rejection loop, so drop it and come back as a new player.
+	  if (payload.error === 'unknown_key' || payload.error === 'invalid_key') {
+		savePlayerKey('');
+		showMsg('That key was not recognised — starting a new player.', true);
+		ws.close();
+	  }
+	  // A rejected submission still costs a cooldown, so the button has to
+	  // reflect it — otherwise the player just gets "please wait" on every
+	  // retry with no visible reason.
+	  if (typeof payload.cooldownEnd === 'number') {
+		cooldownEnd = payload.cooldownEnd;
+		updateSubmitButton();
+		startCooldownTimer();
+	  }
 	}
   };
 }
 
-function generateUniqueNumbers(realNumber, count = 9) {
-    const fakeNumbers = new Set();
-    while (fakeNumbers.size < count) {
-        const offset = Math.floor(Math.random() * 9) + 1; // 1–9
-        const addOrSubtract = Math.random() < 0.5 ? -1 : 1;
-        const fakeNumber = realNumber + offset * addOrSubtract;
-        if (fakeNumber !== realNumber) fakeNumbers.add(fakeNumber);
-    }
-    return Array.from(fakeNumbers);
-}
-
-// --- Helper: shuffle array ---
-function shuffleArray(array) {
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-}
-
-// --- Helper: create number element ---
-function createNumberElement(number, invisible = false) {
-    const element = document.createElement('div');
-    element.textContent = number;
-
-    if (invisible) {
-        element.style.position = 'absolute';
-        element.style.width = '0';
-        element.style.height = '0';
-        element.style.overflow = 'hidden';
-        element.style.opacity = '0';
-    }
-
-    return element;
-}
-
-function populateCounter(realNumber, containerEl) {
-    containerEl.innerHTML = ''; // clear old content
-
-    const fakeNumbers = generateUniqueNumbers(realNumber);
-    const allNumbers = shuffleArray([realNumber, ...fakeNumbers]);
-
-    allNumbers.forEach(num => {
-        const isInvisible = num !== realNumber;
-        const numberEl = createNumberElement(num, isInvisible);
-        containerEl.appendChild(numberEl);
-    });
+/**
+ * The number to enter arrives as a rendered PNG data URI; its value is never
+ * sent.
+ *
+ * It shows the goal directly, not the current count, so the player types what
+ * they read rather than doing arithmetic on it.
+ *
+ * A raster rather than an SVG, on purpose. The SVG version carried the glyph
+ * geometry as data — path coordinates in canonical space, with the rotation in
+ * a separate transform attribute — and a bot read the number straight out of it
+ * with no OCR at all. Pixels have no such back door.
+ */
+function renderTargetImage(dataUri, containerEl) {
+  if (typeof dataUri !== 'string' || !dataUri.startsWith('data:image/png;base64,')) return;
+  let img = containerEl.querySelector('img.counterImg');
+  if (!img) {
+	containerEl.innerHTML = '';
+	img = document.createElement('img');
+	img.className = 'counterImg';
+	img.alt = 'The number to enter';
+	containerEl.appendChild(img);
+  }
+  img.src = dataUri;
 }
 
 // --- Update counter and leaderboard ---
 function applyState(state) {
-populateCounter(state.counter, counterEl);
+  if (state.targetImage) renderTargetImage(state.targetImage, counterEl);
 
   const rows = (state.leaderboard || []);
   boardTbody.innerHTML = '';
@@ -160,7 +185,20 @@ populateCounter(state.counter, counterEl);
   rows.forEach((r, idx) => {
 	const displayId = r.uuid === myUuid ? 'You' : r.uuid.slice(0,8);
 	const tr = document.createElement('tr');
-	tr.innerHTML = `<td>${idx + 1}</td><td class="uuidCell">${displayId}</td><td>${r.playerName}</td><td>${r.score}</td>`;
+
+	// Cells are built with textContent, never innerHTML. playerName is
+	// attacker-controlled: it comes from another player, through the server,
+	// to every client. Interpolating it into an HTML string made any name a
+	// stored XSS payload executing in every viewer's browser. The server also
+	// strips markup characters now, but this is the layer that has to be right
+	// — it is the one that decides whether the value is code or text.
+	const cells = [String(idx + 1), displayId, r.playerName, String(r.score)];
+	cells.forEach((value, cellIdx) => {
+	  const td = document.createElement('td');
+	  td.textContent = value;
+	  if (cellIdx === 1) td.className = 'uuidCell';
+	  tr.appendChild(td);
+	});
 
 	// Admin: copy full UUID on click
 	if (playerName === "Admin" && r.uuid !== myUuid) {
@@ -176,11 +214,6 @@ populateCounter(state.counter, counterEl);
 
 	boardTbody.appendChild(tr);
   });
-
-  if (state.playerUuid === myUuid && state.cooldownEnd) {
-	cooldownEnd = state.cooldownEnd;
-	startCooldownTimer();
-  }
 
   updateSubmitButton();
 }
@@ -224,6 +257,55 @@ submitBtn.onclick = () => {
   numberInput.value = '';
 };
 
+// --- Player key ---
+function savePlayerKey(key) {
+  playerKey = key || '';
+  if (playerKey) {
+	localStorage.setItem('playerKey', playerKey);
+  } else {
+	localStorage.removeItem('playerKey');
+  }
+  keyDisplay.value = playerKey;
+}
+
+keyBtn.onclick = () => {
+  keyDisplay.value = playerKey;
+  keyDisplay.type = 'password';
+  keyRevealBtn.textContent = 'Show';
+  keyInput.value = '';
+  keyModal.style.display = 'flex';
+};
+
+keyRevealBtn.onclick = () => {
+  const hidden = keyDisplay.type === 'password';
+  keyDisplay.type = hidden ? 'text' : 'password';
+  keyRevealBtn.textContent = hidden ? 'Hide' : 'Show';
+};
+
+keyCopyBtn.onclick = () => {
+  if (!playerKey) { showMsg('No key yet', true); return; }
+  navigator.clipboard.writeText(playerKey)
+	.then(() => showMsg('Key copied to clipboard', false, true))
+	.catch(() => showMsg('Could not copy — reveal it and copy by hand', true));
+};
+
+keyUseBtn.onclick = () => {
+  const pasted = keyInput.value.trim();
+  if (!pasted) { showMsg('Paste a key first', true); return; }
+  savePlayerKey(pasted);
+  keyModal.style.display = 'none';
+  showMsg('Switching player...', false, true);
+  // Identity is fixed for the life of a connection, so reconnect to adopt it.
+  ws.close();
+};
+
+keyRotateBtn.onclick = () => {
+  if (!confirm('Replace your key? The current one will stop working everywhere.')) return;
+  ws.send(JSON.stringify({ action: 'rotateKey' }));
+};
+
+keyCloseBtn.onclick = () => keyModal.style.display = 'none';
+
 // --- Name modal ---
 playerNameDisplay.onclick = () => {
   nameModalInput.value = playerName;
@@ -251,13 +333,20 @@ function checkAdminTools() {
 adminToolsBtn.onclick = () => adminModal.style.display = "flex";
 adminCloseBtn.onclick = () => adminModal.style.display = "none";
 
+// Admin authorisation is a server-side token, not an IP or a display name.
+// Nothing here grants anything: the server rejects any admin command whose
+// token does not match, so this input is a convenience, not a control.
+function adminToken() {
+  return (adminTokenInput && adminTokenInput.value.trim()) || '';
+}
+
 resetCounterBtn.onclick = () => {
-  ws.send(JSON.stringify({ action: "admin:resetCounter" }));
+  ws.send(JSON.stringify({ action: "admin:resetCounter", adminToken: adminToken() }));
   showMsg("Sent reset counter command", false, true);
 };
 
 clearLeaderboardBtn.onclick = () => {
-  ws.send(JSON.stringify({ action: "admin:clearLeaderboard" }));
+  ws.send(JSON.stringify({ action: "admin:clearLeaderboard", adminToken: adminToken() }));
   showMsg("Sent clear leaderboard command", false, true);
 };
 
@@ -267,7 +356,7 @@ removePlayerBtn.onclick = () => {
 	showMsg("Enter target UUID", true);
 	return;
   }
-  ws.send(JSON.stringify({ action: "admin:removePlayer", targetUuid: target }));
+  ws.send(JSON.stringify({ action: "admin:removePlayer", targetUuid: target, adminToken: adminToken() }));
   showMsg(`Sent remove player command for ${target}`, false, true);
   removePlayerInput.value = "";
 };
@@ -276,6 +365,7 @@ removePlayerBtn.onclick = () => {
 window.onclick = (e) => {
   if (e.target === nameModal) nameModal.style.display = 'none'; 
   if (e.target === adminModal) adminModal.style.display = 'none';
+  if (e.target === keyModal) keyModal.style.display = 'none';
 };
 
 // --- Initialize ---

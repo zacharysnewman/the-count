@@ -212,3 +212,17 @@ th {
   width: 100%;
   margin-top: 8px;
 }
+
+/* Player key modal */
+.keyNote { font-size: 0.85rem; opacity: 0.75; margin: 6px 0 10px; line-height: 1.4; }
+.keyRow { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.keyRow input { flex: 1 1 12rem; min-width: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+#keyModal .modal-content { max-width: 30rem; text-align: left; }
+#keyModal h4 { margin: 14px 0 0; }
+
+/* Counter image. The goal is drawn server side and arrives as a PNG data URI. */
+/* The image is a fixed 400x80 canvas whatever the value — that is an anti-leak
+   measure in the server renderer, not a layout choice, so short numbers no longer
+   scale themselves up to fill the box. The cap is sized for the widest case to keep
+   glyphs at roughly the on-screen size they had when the canvas varied. */
+.counter img.counterImg { display: block; width: 100%; max-width: 30rem; margin: 0 auto; image-rendering: auto; }
