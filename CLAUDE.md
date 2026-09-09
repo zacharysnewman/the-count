@@ -46,9 +46,11 @@ nothing. `the-count-backend/HARDENING.md` #8 has the detail.
 
 1. ~~`counter` sent verbatim.~~ The frame now carries `targetImage`, a server-rendered
    PNG data URI of the goal, and no numeric counter at all. `renderTargetImage()` drops
-   it into an `<img>` and does nothing else with it. There is no client-side way to get
-   the number back, by design — do not add one, and do not add a text alternative
-   (see the accessibility note below).
+   it into an `<img>` and does nothing else with it. Keep it that way — do not add a
+   text alternative or any client-side transcription (see the accessibility note below).
+   The image is plain upright digits and makes no attempt to resist OCR; that is a
+   deliberate backend decision, so the bar it sets is "a bot needs a recognition
+   pipeline", not "a bot cannot read it".
 2. ~~Score sum.~~ The broadcast leaderboard is a periodic snapshot, not live totals. A
    player's own score arrives privately in a `you` frame.
 3. ~~Frame counting.~~ State arrives on a fixed cadence whether or not anything changed,
@@ -67,6 +69,10 @@ the counter. Adding one is a backend change and belongs in that repo's audit.
   used to reveal the digit count. Nothing here should crop, trim whitespace from, or
   otherwise size the element from the image content; style it from the fixed aspect ratio
   only. `.counterImg` is capped at `30rem`.
+- **Do not cache or diff `targetImage` across frames.** The server randomises every render
+  precisely so consecutive frames are never byte-identical; a client-side "skip if
+  unchanged" optimisation would rebuild the frame-counting leak that randomisation exists
+  to prevent, and would never hit anyway.
 - The player key is identity: holding it *is* being that player. It is shown once in the
   key modal and stored locally. Never log it, never put it in a URL, never send it
   anywhere but the game socket.
@@ -77,5 +83,7 @@ the counter. Adding one is a backend change and belongs in that repo's audit.
   alternative, so a screen reader user cannot play. There is no way to expose the value to
   assistive technology without exposing it to a script — that is the entire mechanism.
   The answer, when there is one, is a separate accessible mode, not an `alt` attribute.
+  The digits are no longer rotated, which helps low-vision sighted players a great deal
+  and does nothing whatsoever for screen reader users.
 - The React client in the-count-backend renders the same `targetImage` and shares this
   contract. Keep protocol changes in sync across both.
