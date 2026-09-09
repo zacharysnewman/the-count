@@ -38,6 +38,19 @@ asked to send.
   that change by arriving, even with the value stripped out.
 - **Per-event attribution** — broadcasting *who* just scored lets any client keep a tally.
 
+### Threat model — what is in scope
+
+**Optical recognition of the counter image is out of scope, by decision** — defending
+against it means distorting the digits far enough that the game stops being pleasant to
+play, for protection that measured partial anyway. The test for anything new:
+
+> **Does the attack require interpreting pixels? If yes, out of scope. If no, in scope.**
+
+For this repo that mostly means: never hand a script a structural shortcut to the number.
+An SVG, a sprite sheet, a per-digit asset, a cached blob keyed by value — anything a
+lookup table can turn into a digit without touching a pixel — is the attack that is still
+in scope, and it is a client-side change that would reintroduce it.
+
 ### Known live instances
 
 None. The four channels below were closed together in the backend, which is the only
@@ -50,7 +63,8 @@ nothing. `the-count-backend/HARDENING.md` #8 has the detail.
    text alternative or any client-side transcription (see the accessibility note below).
    The image is plain upright digits and makes no attempt to resist OCR; that is a
    deliberate backend decision, so the bar it sets is "a bot needs a recognition
-   pipeline", not "a bot cannot read it".
+   pipeline", not "a bot cannot read it". Ten images — one per digit — read it at 100%,
+   so never describe the image to anyone as protecting the number.
 2. ~~Score sum.~~ The broadcast leaderboard is a periodic snapshot, not live totals. A
    player's own score arrives privately in a `you` frame.
 3. ~~Frame counting.~~ State arrives on a fixed cadence whether or not anything changed,
